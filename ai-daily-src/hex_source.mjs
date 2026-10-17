@@ -30,44 +30,73 @@ function sectionFor(text) {
  const label=fold(text);
  return headings.find(h=>label===fold(h)||/^\d+[.、]/.test(tidy(text))&&label.endsWith(fold(h)))||null;
 }
+function imageFromNode($,img,articleUrl){
+ const el=$(img);
+ const picture=el.parent('picture');
+ let candidate=el.attr('data-src')||el.attr('data-original')||el.attr('data-lazy-src')||el.attr('src')||'';
+ if((!candidate||candidate.startsWith('data:'))&&picture.length)candidate=picture.find('source[srcset]').first().attr('srcset')||'';
+ candidate=candidate.split(',')[0].trim().split(/\s+/)[0];
+ if(!candidate||candidate.startsWith('data:')||candidate.startsWith('blob:'))return null;
+ let uri;
+ try {uri=new URL(candidate,articleUrl)}catch{return null}
+ // Only reuse images distributed by the daily publisher, never arbitrary third-party URLs.
+ if(uri.protocol!=='https:'||!['source.hex2077.dev','hex2077.dev'].includes(uri.hostname))return null;
+ if(!/\.(png|jpe?g|webp|avif|gif)$/i.test(uri.pathname))return null;
+ const alt=tidy(el.attr('alt')||el.attr('title')||'');
+ return {type:'image',url:uri.href,alt:alt.slice(0,160),credit:'何夕2077 · 原日报图片',creditUrl:articleUrl};
+}
 export function parseDailyArticle(html,url,expectedDate){
  const $=cheerio.load(html);
- // The verified index link supplies the date; the site's HTML can render its title as h1, h2, or a div.
- const path=new URL(url).pathname.match(/\/docs\/(\d{4})-(\d{2})\/(\d{4})-(\d{2})-(\d{2})(?:\/|$)/);
- if(!path||path[1]!==path[3]||path[2]!==path[4])throw Error('Invalid HEX article URL');
- const date=path[1]+'-'+path[2]+'-'+path[5];
- if(expectedDate&&date!==expectedDate)throw Error('HEX date mismatch: '+date+' != '+expectedDate);
+ const p=new URL(url).pathname.match(/\/docs\/(\d{4})-(\d{2})\/(\d{4})-(\d{2})-(\d{2})(?:\/|$)/);
+ if(!p||p[1]!==p[3]||p[2]!==p[4])throw Error('Invalid HEX article URL');
+ const date=p[1]+'-'+p[2]+'-'+p[5];
+ if(expectedDate&&date!==expectedDate)throw Error('HEX date mismatch '+date+' != '+expectedDate);
  const roots=[...$('article').toArray(),...$('main').toArray(),...$('body').toArray()];
- const candidates=roots.map(node=>({node,depth:$(node).parents().length,matched:$(node).find('h1,h2,h3,h4,h5').toArray().filter(h=>sectionFor($(h).text())).length}));
- const best=candidates.filter(x=>x.matched>=3).sort((a,b)=>b.depth-a.depth)[0];
+ const best=roots.map(node=>({node,depth:$(node).parents().length,matched:$(node).find('h1,h2,h3,h4,h5').toArray().filter(h=>sectionFor($(h).text())).length})).filter(x=>x.matched>=3).sort((a,b)=>b.depth-a.depth)[0];
  const root=best?$(best.node):$('body');
- const result=new Map();let current=null;
- for(const node of root.find('h1,h2,h3,h4,h5,li,p').toArray()){
+ const result=new Map();let current=null,last=null;
+ // Walk elements in document order so a standalone img immediately after <li> belongs to that item.
+ const nodes=root.find('h1,h2,h3,h4,h5,li,p,img,video').toArray();
+ for(const node of nodes){
   if(/^h[1-5]$/.test(node.name)){
    const t=tidy($(node).text()),c=sectionFor(t);
-   if(c){current=c;if(!result.has(c))result.set(c,{title:c,items:[]})}
-   else if(/AI资讯日报多渠道|回到顶部|相关阅读|本页目录|评论区/.test(t))current=null;
+   if(c){current=c;last=null;if(!result.has(c))result.set(c,{title:c,items:[]})}
+   else if(/AI资讯日报多渠道|回到顶部|相关阅读|本页目录|评论区/.test(t)){current=null;last=null}
    continue;
   }
   if(!current)continue;
+  const group=result.get(current);
+  if(node.name==='img'){
+   if(last&&last.media.length<3){
+    const img=imageFromNode($,node,url);
+    if(img&&!last.media.some(x=>x.url===img.url))last.media.push(img);
+   }
+   continue;
+  }
+  if(node.name==='video'){
+   const poster=$(node).attr('poster');
+   if(last&&poster&&last.media.length<3){
+    const img=imageFromNode($,{attribs:{src:poster,alt:'视频案例封面'}},url);
+    if(img&&!last.media.some(x=>x.url===img.url))last.media.push(img);
+   }
+   continue;
+  }
   if(node.name==='li'&&$(node).parents('li').length)continue;
   if(node.name==='p'&&($(node).closest('li').length||! /^\s*\d+[.)、]/.test($(node).text())))continue;
-  const group=result.get(current);if(group.items.length>=30)continue;
+  if(group.items.length>=30)continue;
   const clone=$(node).clone();clone.find('script,style,img,figure,svg,button').remove();
-  const value=tidy(clone.text()).replace(/^\d+[.)、]\s*/,'').slice(0,850);
-  if(value.length<16)continue;
+  const text=tidy(clone.text()).replace(/^\d+[.)、]\s*/,'').slice(0,850);
+  if(text.length<16)continue;
   const links=[];
-  clone.find('a[href]').each((_,a)=>{try{
-   const u=new URL($(a).attr('href'),url);
-   if(['https:','http:'].includes(u.protocol)&&u.hostname!=='hex2077.dev'&&!links.includes(u.href))links.push(u.href)
-  }catch{}});
-  group.items.push({id:'I'+(group.items.length+1),text:value,links:links.slice(0,3)});
+  clone.find('a[href]').each((_,a)=>{try{const u=new URL($(a).attr('href'),url);if(['http:','https:'].includes(u.protocol)&&u.hostname!=='hex2077.dev'&&!links.includes(u.href))links.push(u.href)}catch{}});
+  last={id:'I'+(group.items.length+1),text,links:links.slice(0,3),media:[]};
+  group.items.push(last);
  }
  const sections=[...result.values()].filter(x=>x.items.length);
  const missing=headings.filter(h=>!sections.some(s=>s.title===h));
  if(sections.length<3||missing.length>2){
   const hs=$('h1,h2,h3,h4,h5').toArray().map(n=>tidy($(n).text()).slice(0,80)).filter(Boolean);
-  throw Error('HEX section extraction failed: '+JSON.stringify({date,url,found:sections.map(s=>[s.title,s.items.length]),missing,htmlTitle:tidy($('title').text()),headings:hs.slice(-35),mainCount:$('main').length,articleCount:$('article').length,listCount:$('li').length}));
+  throw Error('HEX section extraction failed: '+JSON.stringify({date,url,found:sections.map(s=>[s.title,s.items.length]),missing,htmlTitle:tidy($('title').text()),headings:hs.slice(-35),listCount:$('li').length}));
  }
  return {date,url,sections,title:'AI资讯日报 '+date.replace(/-/g,'/'),missingSections:missing};
 }
