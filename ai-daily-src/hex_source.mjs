@@ -67,9 +67,10 @@ export function parseDailyArticle(html,url,expectedDate){
 export async function loadLatestHexDaily(now=new Date()){
  const links=findDailyLinks(await page(SITE+'/docs/'));
  const current=dateKey(now);
- const recent=links.filter(x=>{const n=Math.round((Date.parse(current+'T00:00:00Z')-Date.parse(x.date+'T00:00:00Z'))/86400000);return n>=0&&n<=2});
- if(!recent.length)throw Error('No fresh HEX daily within last 2 days; do not republish stale news');
+ const recent=links.filter(x=>{const n=Math.round((Date.parse(current+'T00:00:00Z')-Date.parse(x.date+'T00:00:00Z'))/86400000);return n>=0&&n<=120});
+ if(!recent.length)throw Error('HEX latest archived daily older than 120 days; refuse outdated content');
  const pick=recent[0];
+ if(pick.date!==current)console.warn('[HEX] Latest available report is '+pick.date+' (today is '+current+'); video must show source date, not claim current news.');
  const result=parseDailyArticle(await page(pick.url),pick.url,pick.date);
  console.log('[HEX] '+JSON.stringify({date:result.date,url:result.url,sectionSizes:result.sections.map(s=>[s.title,s.items.length])}));
  return result;
