@@ -47,8 +47,11 @@ jobs:
         env:
           REQUESTED_MODE: ${{ inputs.mode }}
           EVENT_NAME: ${{ github.event_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           if [ "$EVENT_NAME" = "schedule" ]; then
+            MODE=free
+          elif [ "$EVENT_NAME" = "push" ] && [[ "$COMMIT_MESSAGE" == *"[run free]"* ]]; then
             MODE=free
           else
             MODE="${REQUESTED_MODE:-demo}"
