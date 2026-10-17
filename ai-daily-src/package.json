@@ -1,0 +1,16 @@
+{
+  "name": "ai-daily-video-github-free",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node generate.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.528",
+    "remotion": "4.0.528",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "rss-parser": "3.13.0"
+  }
+}
