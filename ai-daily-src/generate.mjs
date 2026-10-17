@@ -3,6 +3,8 @@ import path from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import Parser from 'rss-parser';
+import {loadLatestHexDaily} from './hex_source.mjs';
+import {summarizeHexSections} from './hex_summary.mjs';
 
 const sh=promisify(execFile);
 const root=process.cwd();
@@ -136,15 +138,16 @@ await fs.mkdir(pub,{recursive:true});
 let scenes=[],manifest={date,mode,generatedAt:now.toISOString(),articles:[]},totalFrames=0;
 if(mode==='live'||mode==='free'){
  if(mode==='live'&&!key)throw new Error('OPENAI_API_KEY not configured. Use MODE=free instead.');
- const {news,errors}=await gather();
- manifest.feedErrors=errors;
- const stories=mode==='free'?await generateLocalText(news):await generateText(news);
+ const report=await loadLatestHexDaily(now);
+ if(mode==='live')throw new Error('OpenAI live mode not supported for HEX source yet; please use free mode');
+ const chapters=await summarizeHexSections(report);
+ manifest.source={name:'何夕2077 · 每日AI资讯速递',url:report.url,date:report.date};
+ manifest.articles=chapters.map(x=>({category:x.title,summary:x.summary,narration:x.narration,dailyUrl:report.url,originalLinks:x.selected.flatMap(y=>y.links)}));
  scenes=[
-  {kind:'intro',tag:'AI DAILY',title:'今天的 AI 日报',summary:date+' · 三条AI科技快讯',narration:'欢迎收看今天的AI日报，一分钟左右了解三条值得关注的人工智能动态。'},
-  ...stories.map((x,i)=>({kind:'story',index:i+1,tag:x.tag,title:x.title,summary:x.summary,source:x.source.source,narration:x.narration})),
-  {kind:'outro',tag:'SEE YOU',title:'明天继续更新',summary:'关注 AI 编程与模型新动态',narration:'以上就是今天的AI日报。关注我们，明天继续分享值得关注的AI动态。'}
+  {kind:'intro',tag:'AI DAILY',title:'每日 AI 资讯速递',summary:report.date+' · '+chapters.length+' 个热点栏目',narration:'欢迎收看AI资讯速递。今天我们按栏目提炼重点内容，一起看看人工智能领域有哪些值得关注的新动态。'},
+  ...chapters.map((x,i)=>({kind:'story',index:i+1,tag:x.title,title:x.title,summary:x.summary,source:'何夕2077 / '+report.date,narration:x.narration})),
+  {kind:'outro',tag:'SOURCE',title:'关注每日 AI 动态',summary:'整理来源：hex2077.dev；具体报道请查看原始链接。',narration:'以上是本期AI资讯摘要。新闻整理参考何夕2077每日AI资讯速递，具体信息以原始来源为准。'}
  ];
- manifest.articles=stories.map(x=>({title:x.title,sourceTitle:x.source.title,source:x.source.source,url:x.source.url,publishedAt:x.source.publishedAt,narration:x.narration}));
  const list=[],lengths=[];
  if(mode==='free'){
   const narrationFile=path.join(tmp,'scenes.json');
