@@ -167,6 +167,6 @@ function DailyCover({cover,date}){
  </AbsoluteFill>
 }
 
-const Root=()=> <><Composition id="AiDaily" component={Daily} width={W} height={H} fps={30} durationInFrames={600} defaultProps={{date:'DEMO',scenes:[],captions:[],totalFrames:600,hasAudio:false}} calculateMetadata={({props})=>({durationInFrames:props.totalFrames||600})}/>;
+const Root=()=> <><Composition id="AiDaily" component={Daily} width={W} height={H} fps={30} durationInFrames={600} defaultProps={{date:'DEMO',scenes:[],captions:[],totalFrames:600,hasAudio:false}} calculateMetadata={({props})=>({durationInFrames:props.totalFrames||600})}/>
 <Composition id="DailyCover" component={DailyCover} width={W} height={H} fps={30} durationInFrames={1} defaultProps={{cover:{title:'AI日报',date:'DEMO',pictures:[],hook:'真实日报案例封面',tagline:'原创资讯解读',category:'AI日报'},date:'DEMO'}}/></>;
 registerRoot(Root);
