@@ -32,6 +32,9 @@ concurrency:
 jobs:
   render:
     runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
     timeout-minutes: 45
     steps:
       - name: Checkout
