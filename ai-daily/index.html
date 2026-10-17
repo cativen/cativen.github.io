@@ -36,7 +36,7 @@ function show(i){idx=i;const s=scenes[i];el('kicker').textContent=s[1];el('title
 function stage(i){el('steps').innerHTML=pipeline.map((s,j)=>'<div class="step '+(i===j?'current':'')+'"><div class="icon">'+(j<i?'✓':j+1)+'</div><div><b>'+s[0]+'</b><span>'+s[1]+'</span></div></div>').join('')}
 scenes.forEach((s,i)=>{let b=document.createElement('button');b.className='tab';b.textContent=s[0];b.onclick=()=>show(i);el('tabs').appendChild(b)});show(0);stage(-1);
 async function playSteps(){if(locked)return;locked=true;for(let i=0;i<5;i++){show(i);stage(i);el('notice').textContent='模拟步骤 '+(i+1)+'/5：'+pipeline[i][0]+'。未发出任何后端请求。';await new Promise(r=>setTimeout(r,850))}stage(5);el('notice').textContent='演示流程完成。真实任务请访问 GitHub Actions；生成成功后本页将展示最新 MP4。';locked=false}
-async function hasAsset(url){try{const r=await fetch(url,{method:'HEAD',cache:'no-store'});return r.ok&&Number(r.headers.get('content-length')||1)>1000}catch{return false}}
+async function hasAsset(url){try{const r=await fetch(url,{method:'HEAD',cache:'no-store'});return r.ok&&(r.headers.get('content-length')===null||Number(r.headers.get('content-length'))>1000)}catch{return false}}
 function watchVideo(){const player=el('video');player.classList.add('show');player.style.display='block';player.play().catch(()=>{})}
 Promise.all([hasAsset('./latest.mp4'),hasAsset('./latest-cover.png')]).then(([video,cover])=>{
  if(video){el('result').textContent='成片已就绪';el('result-note').textContent='已生成可下载 MP4 与日报来源信息。';el('video-link').style.display='inline-flex';el('play-video').style.display='inline-flex';el('video').src='./latest.mp4';el('status').textContent='GitHub 免费托管 · 成片可用'}
