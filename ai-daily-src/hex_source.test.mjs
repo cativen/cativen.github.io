@@ -15,3 +15,17 @@ for(const level of ['h2','h3']){
 }
 test('reject wrong date',()=>assert.throws(()=>parseDailyArticle(content(),url,'2026-10-18'),/date mismatch/));
 test('error reports HTML headings',()=>assert.throws(()=>parseDailyArticle('<html><title>Wrong</title><main>Empty</main></html>',url,'2026-10-17'),/section extraction failed/));
+
+test('associate publisher-hosted screenshots with the previous daily case',()=>{
+ const html='<main><article><h2>AI资讯日报 2026/10/17</h2>'+
+  categories.map((c,i)=>'<h3>'+c+'</h3><ol><li>这是一条具有具体意义的AI工具案例，介绍产品功能和真实场景。</li></ol><figure><img src="https://source.hex2077.dev/assets/case-'+i+'.png" alt="案例截图 '+i+'"/></figure>').join('')+'</article></main>';
+ const parsed=parseDailyArticle(html,url,'2026-10-17');
+ assert.equal(parsed.sections.length,5);
+ assert.equal(parsed.sections[0].items[0].media.length,1);
+ assert.match(parsed.sections[0].items[0].media[0].alt,/案例截图/);
+});
+test('do not copy third party images without source permissions',()=>{
+ const html='<main><article>'+categories.map(c=>'<h3>'+c+'</h3><ol><li>这是一个人工智能案例的示例条目，描述了具体使用场景。</li></ol><img src="https://unapproved.example.com/x.jpg"/>').join('')+'</article></main>';
+ const parsed=parseDailyArticle(html,url,'2026-10-17');
+ assert.equal(parsed.sections[0].items[0].media.length,0);
+});
