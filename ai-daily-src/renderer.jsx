@@ -57,8 +57,9 @@ function VisualCard({scene,frame,accent}){
     <span style={{background:'#080d20e8',padding:'12px 21px',border:'1px solid #85cef7a1',borderRadius:99,color:'#bcefff',fontSize:26,fontWeight:850}}>真实资讯配图</span>
     {images.length>1&&<span style={{background:'#080d20e3',padding:'12px 21px',borderRadius:99,color:'#d5e9ff',fontSize:24}}>{n+1}/{images.length}</span>}
    </div>
-   <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'45px 30px 24px',fontSize:24,color:'#e1e9fb',background:'linear-gradient(transparent,#070c1be9)'}}>
-    {media.alt ? ('画面：'+media.alt.slice(0,56)):'图源：何夕2077日报，版权归原作者'}
+   <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'65px 35px 24px',color:'#e1e9fb',background:'linear-gradient(transparent,#070c1bf5)'}}>
+    <div style={{fontSize:31,lineHeight:1.35,fontWeight:850,marginBottom:12}}>{excerpt.slice(0,44)}</div>
+    <div style={{fontSize:22,color:'#a5c7e0'}}>{media.alt ? ('画面：'+media.alt.slice(0,47)):'图源：何夕2077日报，图片权属归原作者'}</div>
    </div>
   </div>
  }
