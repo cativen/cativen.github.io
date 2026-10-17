@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'demo = free silent test; live = RSS+GPT+TTS (requires OPENAI_API_KEY secret)'
+        description: 'free = local Qwen + Kokoro, demo = silent preview, live = paid OpenAI opt-in'
         required: true
         type: choice
         default: free
@@ -43,7 +43,7 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Choose demo or live without unexpected charges
+      - name: Select generation mode safely
         id: plan
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -83,7 +83,7 @@ jobs:
         if: steps.plan.outputs.mode == 'free' && steps.plan.outputs.skip == 'false'
         run: |
           sudo apt-get install -y espeak-ng
-          python3 -m pip install --break-system-packages --no-cache-dir "kokoro>=0.9.4" soundfile "numpy<2.3" misaki[zh]
+          python3 -m pip install --break-system-packages --no-cache-dir "kokoro>=0.9.4" soundfile "numpy<2.3" 'misaki[zh]'
           curl -fsSL https://ollama.com/install.sh | sh
           ollama serve > /tmp/ollama.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11434/api/tags && break || sleep 2; done
