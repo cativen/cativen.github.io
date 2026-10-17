@@ -1,0 +1,97 @@
+name: AI Daily Video (Free GitHub Runner)
+
+on:
+  schedule:
+    # 00:07 UTC = 08:07 Shanghai, avoiding top-of-hour congestion.
+    - cron: '7 0 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'demo = free silent test; live = RSS+GPT+TTS (requires OPENAI_API_KEY secret)'
+        required: true
+        type: choice
+        default: demo
+        options:
+          - demo
+          - live
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-daily-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Choose demo or live without unexpected charges
+        id: plan
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REQUESTED_MODE: ${{ inputs.mode }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            MODE=live
+          else
+            MODE="${REQUESTED_MODE:-demo}"
+          fi
+          if [ "$MODE" = live ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No OpenAI API key: skipping live run without charges."
+            exit 0
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.plan.outputs.skip == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install video fonts and FFmpeg
+        if: steps.plan.outputs.skip == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+
+      - name: Install render dependencies
+        if: steps.plan.outputs.skip == 'false'
+        working-directory: ai-daily-src
+        run: npm install --no-audit --no-fund
+
+      - name: Render MP4
+        if: steps.plan.outputs.skip == 'false'
+        working-directory: ai-daily-src
+        env:
+          MODE: ${{ steps.plan.outputs.mode }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GPT_MODEL: gpt-4.1-mini
+          TTS_MODEL: gpt-4o-mini-tts
+          TTS_VOICE: coral
+        run: node generate.mjs
+
+      - name: Verify video with ffprobe
+        if: steps.plan.outputs.skip == 'false'
+        run: |
+          test -s ai-daily/latest.mp4
+          ffprobe -v error -show_entries stream=codec_name,width,height -of json ai-daily/latest.mp4
+
+      - name: Publish latest video without modifying home page
+        if: steps.plan.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai-daily/latest.mp4 ai-daily/latest.sources.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update AI Daily video [skip ci]"
+          git push origin HEAD:main
