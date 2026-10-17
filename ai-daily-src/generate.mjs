@@ -5,6 +5,7 @@ import {promisify} from 'node:util';
 import Parser from 'rss-parser';
 import {loadLatestHexDaily} from './hex_source.mjs';
 import {summarizeHexSections} from './hex_summary.mjs';
+import {prepareStoryAssets} from './news_media.mjs';
 
 const sh=promisify(execFile);
 const root=process.cwd();
@@ -141,12 +142,22 @@ if(mode==='live'||mode==='free'){
  const report=await loadLatestHexDaily(now);
  if(mode==='live')throw new Error('OpenAI live mode not supported for HEX source yet; please use free mode');
  const chapters=await summarizeHexSections(report);
+ const media=await prepareStoryAssets(chapters,pub);
  manifest.source={name:'何夕2077 · 每日AI资讯速递',url:report.url,date:report.date};
- manifest.articles=chapters.map(x=>({category:x.title,summary:x.summary,narration:x.narration,dailyUrl:report.url,originalLinks:x.selected.flatMap(y=>y.links)}));
+ manifest.visualStyle='fast-paced original technology news explainer; documentary screenshots attributed';
+ manifest.articles=chapters.map((x,i)=>({
+  category:x.title,summary:x.summary,narration:x.narration,dailyUrl:report.url,
+  originalLinks:x.selected.flatMap(y=>y.links),caseExcerpts:x.selected.map(y=>y.excerpt),
+  visuals:media[i].map(y=>({originalUrl:y.originalUrl,alt:y.alt,creditUrl:y.creditUrl,credit:y.credit}))
+ }));
  scenes=[
-  {kind:'intro',tag:'AI DAILY',title:'每日 AI 资讯速递',summary:report.date+' · '+chapters.length+' 个热点栏目',narration:'欢迎收看AI资讯速递。今天我们按栏目提炼重点内容，一起看看人工智能领域有哪些值得关注的新动态。'},
-  ...chapters.map((x,i)=>({kind:'story',index:i+1,tag:x.title,title:x.title,summary:x.summary,source:'何夕2077 / '+report.date,narration:x.narration})),
-  {kind:'outro',tag:'SOURCE',title:'关注每日 AI 动态',summary:'整理来源：hex2077.dev；具体报道请查看原始链接。',narration:'以上是本期AI资讯摘要。新闻整理参考何夕2077每日AI资讯速递，具体信息以原始来源为准。'}
+  {kind:'intro',tag:'AI DAILY',title:'今天AI圈有哪些大事？',summary:report.date+' · '+chapters.length+' 个热点栏目',narration:'今天的人工智能领域，又出现了哪些值得关注的变化？接下来用几分钟，把重点资讯和真实案例讲清楚。'},
+  ...chapters.map((x,i)=>({
+   kind:'story',index:i+1,tag:x.title,title:x.title,summary:x.summary,
+   source:'何夕2077 · '+report.date,narration:x.narration,
+   media:media[i],caseExcerpts:x.selected.map(y=>y.excerpt)
+  })),
+  {kind:'outro',tag:'SOURCE',title:'今日AI速递 完',summary:'摘要来源：hex2077.dev · 图片权属归各原作者',narration:'以上是本期AI资讯速递。内容来源于何夕2077的日报，涉及案例请以原始新闻和项目主页为准。'}
  ];
  const list=[],lengths=[];
  if(mode==='free'){
