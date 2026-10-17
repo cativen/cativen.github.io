@@ -26,49 +26,57 @@ export function findDailyLinks(html){
  });
  return [...found.values()].sort((a,b)=>b.date.localeCompare(a.date));
 }
+function sectionFor(text) {
+ const label=fold(text);
+ return headings.find(h=>label===fold(h)||/^\d+[.、]/.test(tidy(text))&&label.endsWith(fold(h)))||null;
+}
 export function parseDailyArticle(html,url,expectedDate){
  const $=cheerio.load(html);
- const h1=$('h1').filter((_,h)=>/AI资讯日报\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(tidy($(h).text()))).first();
- if(!h1.length)throw Error('No AI资讯日报 heading in article');
- const match=tidy(h1.text()).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
- if(!match)throw Error('No article date');
- const date=match[1]+'-'+match[2].padStart(2,'0')+'-'+match[3].padStart(2,'0');
- if(expectedDate&&date!==expectedDate)throw Error('Daily date mismatch');
- const root=h1.closest('article').length?h1.closest('article'):h1.closest('main').length?h1.closest('main'):$('body');
- let hs=root.find('h3').toArray();
- if(!hs.some(h=>headings.some(t=>fold($(h).text())===fold(t))))hs=root.find('h2,h3').toArray();
- const sections=[];
- for(let i=0;i<hs.length;i++){
-  const title=tidy($(hs[i]).text()).replace(/^#+/,'');
-  if(!title||/^(今日摘要|AI资讯日报多渠道|相关文章|回到顶部)/.test(title))continue;
-  const entries=[];let n=hs[i].next;
-  while(n&&n!==hs[i+1]&&entries.length<30){
-   if(n.type==='tag'&&/^h[234]$/.test(n.name))break;
-   const target=$(n),lis=target.is('ol,ul')?target.children('li'):target.find('ol,ul').first().children('li');
-   lis.each((_,li)=>{
-    if(entries.length>=30)return;
-    const clone=$(li).clone();clone.find('script,style,img,figure,button').remove();
-    const value=tidy(clone.text()).replace(/^\d+[.)、]\s*/,'').slice(0,850);
-    if(value.length<16)return;
-    const links=[];
-    clone.find('a[href]').each((_,a)=>{
-     try{const u=new URL($(a).attr('href'),url);if(['http:','https:'].includes(u.protocol)&&u.hostname!=='hex2077.dev'&&!links.includes(u.href))links.push(u.href)}catch{}
-    });
-    entries.push({id:'I'+(entries.length+1),text:value,links:links.slice(0,3)});
-   });
-   n=n.next;
+ // The verified index link supplies the date; the site's HTML can render its title as h1, h2, or a div.
+ const path=new URL(url).pathname.match(/\/docs\/(\d{4})-(\d{2})\/(\d{4})-(\d{2})-(\d{2})(?:\/|$)/);
+ if(!path||path[1]!==path[3]||path[2]!==path[4])throw Error('Invalid HEX article URL');
+ const date=path[1]+'-'+path[2]+'-'+path[5];
+ if(expectedDate&&date!==expectedDate)throw Error('HEX date mismatch: '+date+' != '+expectedDate);
+ const roots=[...$('article').toArray(),...$('main').toArray(),...$('body').toArray()];
+ const candidates=roots.map(node=>({node,depth:$(node).parents().length,matched:$(node).find('h1,h2,h3,h4,h5').toArray().filter(h=>sectionFor($(h).text())).length}));
+ const best=candidates.filter(x=>x.matched>=3).sort((a,b)=>b.depth-a.depth)[0];
+ const root=best?$(best.node):$('body');
+ const result=new Map();let current=null;
+ for(const node of root.find('h1,h2,h3,h4,h5,li,p').toArray()){
+  if(/^h[1-5]$/.test(node.name)){
+   const t=tidy($(node).text()),c=sectionFor(t);
+   if(c){current=c;if(!result.has(c))result.set(c,{title:c,items:[]})}
+   else if(/AI资讯日报多渠道|回到顶部|相关阅读|本页目录|评论区/.test(t))current=null;
+   continue;
   }
-  if(entries.length)sections.push({title,items:entries});
+  if(!current)continue;
+  if(node.name==='li'&&$(node).parents('li').length)continue;
+  if(node.name==='p'&&($(node).closest('li').length||! /^\s*\d+[.)、]/.test($(node).text())))continue;
+  const group=result.get(current);if(group.items.length>=30)continue;
+  const clone=$(node).clone();clone.find('script,style,img,figure,svg,button').remove();
+  const value=tidy(clone.text()).replace(/^\d+[.)、]\s*/,'').slice(0,850);
+  if(value.length<16)continue;
+  const links=[];
+  clone.find('a[href]').each((_,a)=>{try{
+   const u=new URL($(a).attr('href'),url);
+   if(['https:','http:'].includes(u.protocol)&&u.hostname!=='hex2077.dev'&&!links.includes(u.href))links.push(u.href)
+  }catch{}});
+  group.items.push({id:'I'+(group.items.length+1),text:value,links:links.slice(0,3)});
  }
- const missing=headings.filter(t=>!sections.some(s=>fold(s.title)===fold(t)));
- if(sections.length<3||missing.length>2)throw Error('HEX section parse failed: '+JSON.stringify({found:sections.map(x=>x.title),missing}));
- return {date,url,sections,title:tidy(h1.text()),missingSections:missing};
+ const sections=[...result.values()].filter(x=>x.items.length);
+ const missing=headings.filter(h=>!sections.some(s=>s.title===h));
+ if(sections.length<3||missing.length>2){
+  const hs=$('h1,h2,h3,h4,h5').toArray().map(n=>tidy($(n).text()).slice(0,80)).filter(Boolean);
+  throw Error('HEX section extraction failed: '+JSON.stringify({date,url,found:sections.map(s=>[s.title,s.items.length]),missing,htmlTitle:tidy($('title').text()),headings:hs.slice(-35),mainCount:$('main').length,articleCount:$('article').length,listCount:$('li').length}));
+ }
+ return {date,url,sections,title:'AI资讯日报 '+date.replace(/-/g,'/'),missingSections:missing};
 }
+
 export async function loadLatestHexDaily(now=new Date()){
  const links=findDailyLinks(await page(SITE+'/docs/'));
  const current=dateKey(now);
- const recent=links.filter(x=>{const n=Math.round((Date.parse(current+'T00:00:00Z')-Date.parse(x.date+'T00:00:00Z'))/86400000);return n>=0&&n<=120});
- if(!recent.length)throw Error('HEX latest archived daily older than 120 days; refuse outdated content');
+ const recent=links.filter(x=>{const n=Math.round((Date.parse(current+'T00:00:00Z')-Date.parse(x.date+'T00:00:00Z'))/86400000);return n>=0&&n<=7});
+ if(!recent.length)throw Error('No HEX daily within 7 days; refuse outdated content');
  const pick=recent[0];
  if(pick.date!==current)console.warn('[HEX] Latest available report is '+pick.date+' (today is '+current+'); video must show source date, not claim current news.');
  const result=parseDailyArticle(await page(pick.url),pick.url,pick.date);
