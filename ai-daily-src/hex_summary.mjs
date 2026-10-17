@@ -18,7 +18,7 @@ export async function summarizeHexSections(report){
     const chosen=[...new Set(Array.isArray(data.selectedIds)?data.selectedIds:[])].filter(id=>input.some(x=>x.id===id)).slice(0,2);
     if(!chosen.length)throw Error('No valid reference IDs');
     const selected=section.items.filter(x=>chosen.includes(x.id));
-    results.push({title:section.title,summary:(typeof data.summary==='string'&&data.summary.trim()?data.summary.trim():narration.slice(0,54)).slice(0,100),narration,selected: selected.map(({id,links})=>({id,links})),itemCount:section.items.length});
+    results.push({title:section.title,summary:(typeof data.summary==='string'&&data.summary.trim()?data.summary.trim():narration.slice(0,54)).slice(0,100),narration,selected: selected.map(({id,links,media,text})=>({id,links,media:media||[],excerpt:text.slice(0,90)})),itemCount:section.items.length});
     break;
    }catch(e){lastError=e;console.warn('[HEX] '+section.title+' retry '+attempt+': '+e.message)}
   }
