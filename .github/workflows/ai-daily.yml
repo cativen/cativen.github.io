@@ -78,6 +78,7 @@ jobs:
         working-directory: ai-daily-src
         run: |
           node --test hex_source.test.mjs
+          node --test cover.test.mjs
           node hex_preflight.mjs
 
       - name: Install open-source local models (free mode)
@@ -106,6 +107,8 @@ jobs:
         if: steps.plan.outputs.skip == 'false'
         run: |
           test -s ai-daily/latest.mp4
+          test -s ai-daily/latest-cover.png
+          file ai-daily/latest-cover.png
           ffprobe -v error -show_entries stream=codec_name,width,height -of json ai-daily/latest.mp4
 
       - name: Prepare GitHub Pages directory
@@ -113,7 +116,7 @@ jobs:
         run: |
           mkdir -p .site/ai-daily
           cp index.html .site/index.html
-          cp ai-daily/index.html ai-daily/latest.mp4 ai-daily/latest.sources.json .site/ai-daily/
+          cp ai-daily/index.html ai-daily/latest.mp4 ai-daily/latest.sources.json ai-daily/latest-cover.png .site/ai-daily/
           touch .site/.nojekyll
 
       - name: Upload Pages artifact
