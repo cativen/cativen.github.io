@@ -88,14 +88,24 @@ async function generateLocalText(news) {
  const selection=JSON.parse(body.message?.content||'{}').stories;
  if(!Array.isArray(selection)||selection.length!==3)throw new Error('Offline model did not return 3 stories');
  const src=new Map(input.map(n=>[n.id,n])),seen=new Set();
- return selection.map(s=>{
-  const n=src.get(s.id);
-  if(!n||seen.has(s.id))throw new Error('Offline model selected missing/duplicate source');
+ return selection.map((s, index)=>{
+  if(!s || typeof s!=='object')throw new Error('Offline model returned invalid story at '+index);
+  const n=src.get(String(s.id||''));
+  if(!n||seen.has(s.id))throw new Error('Offline model selected missing/duplicate source ID: '+String(s.id).slice(0,20));
   seen.add(s.id);
-  for(const name of ['title','summary','narration','tag']){
-    if(typeof s[name]!=='string'||!s[name].trim()||s[name].length>550)throw new Error('Invalid '+name+' in offline model output');
+  const field=(value)=>typeof value==='string'?value.trim():'';
+  // The small local model can omit optional prose even when asked for schema JSON.
+  // Use existing, source-linked wording instead of inventing facts or dropping the run.
+  const title=field(s.title)||n.title;
+  const narration=field(s.narration);
+  if(!narration)throw new Error('Offline model omitted essential narration for '+s.id+'; cannot safely publish');
+  const summary=field(s.summary)||narration.slice(0,55);
+  const tag=field(s.tag)||'AI快讯';
+  if([title,summary,narration,tag].some(value=>value.length>550)){
+    throw new Error('Offline model response too long for '+s.id);
   }
-  return {...s,source:n};
+  if(!field(s.summary))console.warn('[QWEN] No summary for '+s.id+'; using first sentence of model narration.');
+  return {id:s.id,title,summary,narration,tag,source:n};
  });
 }
 async function voice(text,file){
