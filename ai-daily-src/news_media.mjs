@@ -25,13 +25,19 @@ async function saveImage(meta,output,idx){
   const array=new Uint8Array(await resp.arrayBuffer());
   if(array.length<350||array.length>9_000_000)throw Error('Media byte size invalid');
   const raw=path.join(output,'incoming_'+idx+path.extname(new URL(meta.url).pathname).toLowerCase());
+  // Reject tiny logos/icons before upscaling them into a prominent cover photograph.
+  let dimensions={width:0,height:0};
   const jpg=path.join(output,'news_'+idx+'.jpg');
   await fs.writeFile(raw,array);
   try{
+   const probe=await exec('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=width,height','-of','csv=p=0:s=x',raw],{timeout:15000});
+   const [width,height]=(probe.stdout||'').trim().split('x').map(Number);
+   if(!Number.isFinite(width)||!Number.isFinite(height)||width<280||height<220||width*height<115000)throw Error('Screenshot too small for video');
+   dimensions={width,height};
    await exec('ffmpeg',['-v','error','-y','-i',raw,'-frames:v','1','-vf','scale=960:1100:force_original_aspect_ratio=decrease','-q:v','4',jpg],{timeout:45000});
    if((await fs.stat(jpg)).size<700)throw Error('Invalid image conversion');
   }finally{await fs.rm(raw,{force:true})}
-  return {asset:'news-media/news_'+idx+'.jpg',originalUrl:meta.url,alt:meta.alt||'',creditUrl:meta.creditUrl,credit:'图源：何夕2077日报（原图权属归原作者）'};
+  return {asset:'news-media/news_'+idx+'.jpg',originalUrl:meta.url,alt:meta.alt||'',width:dimensions.width,height:dimensions.height,creditUrl:meta.creditUrl,credit:'图源：何夕2077日报（原图权属归原作者）'};
  }finally{clearTimeout(timer)}
 }
 export async function prepareStoryAssets(stories,publicDir){
