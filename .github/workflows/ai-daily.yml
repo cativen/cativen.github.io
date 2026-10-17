@@ -1,4 +1,4 @@
-name: AI Daily Video (Free GitHub Runner)
+name: HEX2077 AI Daily Video (Free Runner)
 
 on:
   push:
@@ -12,14 +12,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'free = local Qwen + Kokoro, demo = silent preview, live = paid OpenAI opt-in'
+        description: 'free = HEX2077 daily + Qwen + Kokoro; demo = silent offline test'
         required: true
         type: choice
         default: free
         options:
           - demo
           - free
-          - live
 
 permissions:
   contents: write
@@ -43,10 +42,9 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Select generation mode safely
+      - name: Select HEX2077 production or offline demo
         id: plan
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REQUESTED_MODE: ${{ inputs.mode }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -54,10 +52,6 @@ jobs:
             MODE=free
           else
             MODE="${REQUESTED_MODE:-demo}"
-          fi
-          if [ "$MODE" = live ] && [ -z "$OPENAI_API_KEY" ]; then
-            MODE=demo
-            echo "No OpenAI API key: rendering offline demo instead."
           fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
