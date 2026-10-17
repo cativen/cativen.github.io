@@ -6,6 +6,7 @@ import Parser from 'rss-parser';
 import {loadLatestHexDaily} from './hex_source.mjs';
 import {summarizeHexSections} from './hex_summary.mjs';
 import {prepareStoryAssets} from './news_media.mjs';
+import {chooseDailyCover} from './cover.mjs';
 
 const sh=promisify(execFile);
 const root=process.cwd();
@@ -137,12 +138,16 @@ await fs.mkdir(out,{recursive:true});
 await fs.mkdir(tmp,{recursive:true});
 await fs.mkdir(pub,{recursive:true});
 let scenes=[],manifest={date,mode,generatedAt:now.toISOString(),articles:[]},totalFrames=0;
+let cover={title:'AI日报',date,pictures:[],hook:'每日科技资讯速递',tagline:'新闻与真实案例解读',category:'AI资讯'};
 if(mode==='live'||mode==='free'){
  if(mode==='live'&&!key)throw new Error('OPENAI_API_KEY not configured. Use MODE=free instead.');
  const report=await loadLatestHexDaily(now);
  if(mode==='live')throw new Error('OpenAI live mode not supported for HEX source yet; please use free mode');
  const chapters=await summarizeHexSections(report);
  const media=await prepareStoryAssets(chapters,pub);
+ cover=chooseDailyCover(chapters,media,report.date);
+ manifest.cover={...cover,imageUrls:cover.pictures.map(p=>p.originalUrl)};
+ console.log('[COVER] '+JSON.stringify({date:cover.date,hero:cover.pictures[0]?.originalUrl||null,hook:cover.hook,images:cover.imageCount}));
  manifest.source={name:'何夕2077 · 每日AI资讯速递',url:report.url,date:report.date};
  manifest.visualStyle='fast-paced original technology news explainer; documentary screenshots attributed';
  manifest.articles=chapters.map((x,i)=>({
@@ -186,15 +191,21 @@ if(mode==='live'||mode==='free'){
  await cmd('ffmpeg',['-loglevel','error','-y','-f','lavfi','-i','anullsrc=r=48000:cl=stereo','-t',String(totalFrames/fps),'-ac','2','-c:a','pcm_s16le',path.join(pub,'narration.wav')]);
  manifest.notes='DEMO: all content fictional; soundtrack is silence, no OpenAI calls';
 } else throw new Error('Unexpected MODE '+mode);
+if(mode==='demo')cover={...cover,title:'AI日报 · 演示',hook:'离线视频模板演示',tagline:'并非真实新闻画面',category:'DEMO'};
 const captions=addCaptions(scenes);
 const propsFile=path.join(tmp,'props.json');
-await fs.writeFile(propsFile,JSON.stringify({date,scenes,captions,totalFrames,hasAudio:true}));
+await fs.writeFile(propsFile,JSON.stringify({date:cover.date,scenes,captions,totalFrames,hasAudio:true,cover}));
 const output=path.join(out,'latest.mp4');
 await cmd(path.join(root,'node_modules/.bin/remotion'),['render',path.join(root,'renderer.jsx'),'AiDaily',output,
  '--props',propsFile,'--codec=h264','--audio-codec=aac','--pixel-format=yuv420p','--concurrency=2'],1800000);
+const coverFile=path.join(out,'latest-cover.png');
+await cmd(path.join(root,'node_modules/.bin/remotion'),['still',path.join(root,'renderer.jsx'),'DailyCover',coverFile,'--props',propsFile,'--frame=0','--image-format=png'],180000);
+if((await fs.stat(coverFile)).size<3000)throw new Error('Generated cover PNG is unexpectedly small');
 const stat=await fs.stat(output);
 if(stat.size<10000)throw new Error('MP4 too small');
 manifest.durationSec=Math.round(totalFrames/fps*10)/10;
 manifest.bytes=stat.size;
+manifest.coverFile='latest-cover.png';
+manifest.coverFallback=!cover.hasSourceImage;
 await fs.writeFile(path.join(out,'latest.sources.json'),JSON.stringify(manifest,null,2));
 console.log('SUCCESS: '+JSON.stringify({mode,video:output,bytes:stat.size,durationSec:manifest.durationSec}));
