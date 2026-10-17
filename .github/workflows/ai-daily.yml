@@ -1,6 +1,11 @@
 name: AI Daily Video (Free GitHub Runner)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'ai-daily-src/**'
+      - '.github/workflows/ai-daily.yml'
   schedule:
     # 00:07 UTC = 08:07 Shanghai, avoiding top-of-hour congestion.
     - cron: '7 0 * * *'
@@ -17,6 +22,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: ai-daily-render
@@ -95,3 +102,22 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Update AI Daily video [skip ci]"
           git push origin HEAD:main
+
+      - name: Prepare GitHub Pages directory
+        if: steps.plan.outputs.skip == 'false'
+        run: |
+          mkdir -p .site/ai-daily
+          cp index.html .site/index.html
+          cp ai-daily/index.html ai-daily/latest.mp4 ai-daily/latest.sources.json .site/ai-daily/
+          touch .site/.nojekyll
+
+      - name: Upload Pages artifact
+        if: steps.plan.outputs.skip == 'false'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .site
+
+      - name: Deploy GitHub Pages
+        if: steps.plan.outputs.skip == 'false'
+        id: pages
+        uses: actions/deploy-pages@v4
