@@ -15,9 +15,10 @@ on:
         description: 'demo = free silent test; live = RSS+GPT+TTS (requires OPENAI_API_KEY secret)'
         required: true
         type: choice
-        default: demo
+        default: free
         options:
           - demo
+          - free
           - live
 
 permissions:
@@ -50,7 +51,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ "$EVENT_NAME" = "schedule" ]; then
-            MODE=live
+            MODE=free
           else
             MODE="${REQUESTED_MODE:-demo}"
           fi
@@ -78,12 +79,23 @@ jobs:
         working-directory: ai-daily-src
         run: npm install --no-audit --no-fund
 
+      - name: Install open-source local models (free mode)
+        if: steps.plan.outputs.mode == 'free' && steps.plan.outputs.skip == 'false'
+        run: |
+          sudo apt-get install -y espeak-ng
+          python3 -m pip install --break-system-packages --no-cache-dir "kokoro>=0.9.4" soundfile "numpy<2.3" misaki[zh]
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11434/api/tags && break || sleep 2; done
+          ollama pull qwen2.5:1.5b
       - name: Render MP4
         if: steps.plan.outputs.skip == 'false'
         working-directory: ai-daily-src
         env:
           MODE: ${{ steps.plan.outputs.mode }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OLLAMA_MODEL: qwen2.5:1.5b
+          KOKORO_VOICE: zf_001
           GPT_MODEL: gpt-4.1-mini
           TTS_MODEL: gpt-4o-mini-tts
           TTS_VOICE: coral
