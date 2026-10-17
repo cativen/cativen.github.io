@@ -27,7 +27,7 @@ permissions:
 
 concurrency:
   group: ai-daily-render
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   render:
@@ -110,6 +110,19 @@ jobs:
           test -s ai-daily/latest-cover.png
           file ai-daily/latest-cover.png
           ffprobe -v error -show_entries stream=codec_name,width,height -of json ai-daily/latest.mp4
+
+      - name: Upload downloadable video and cover artifact
+        if: steps.plan.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-daily-video-and-cover
+          path: |
+            ai-daily/latest.mp4
+            ai-daily/latest-cover.png
+            ai-daily/latest.sources.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
       - name: Prepare GitHub Pages directory
         if: steps.plan.outputs.skip == 'false'
