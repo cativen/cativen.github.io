@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: true
 
@@ -58,7 +58,7 @@ jobs:
 
       - name: Setup Node
         if: steps.plan.outputs.skip == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -72,6 +72,13 @@ jobs:
         if: steps.plan.outputs.skip == 'false'
         working-directory: ai-daily-src
         run: npm install --no-audit --no-fund
+
+      - name: Verify HEX article structure before downloading models
+        if: steps.plan.outputs.mode == 'free' && steps.plan.outputs.skip == 'false'
+        working-directory: ai-daily-src
+        run: |
+          node --test hex_source.test.mjs
+          node hex_preflight.mjs
 
       - name: Install open-source local models (free mode)
         if: steps.plan.outputs.mode == 'free' && steps.plan.outputs.skip == 'false'
