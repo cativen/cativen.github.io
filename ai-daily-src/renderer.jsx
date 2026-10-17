@@ -117,5 +117,56 @@ function Daily({date,scenes,captions,totalFrames,hasAudio}){
   {hasAudio&&<Audio src={staticFile('narration.wav')}/>}
  </AbsoluteFill>
 }
-const Root=()=> <Composition id="AiDaily" component={Daily} width={W} height={H} fps={30} durationInFrames={600} defaultProps={{date:'DEMO',scenes:[],captions:[],totalFrames:600,hasAudio:false}} calculateMetadata={({props})=>({durationInFrames:props.totalFrames||600})}/>;
+
+// 9:16 social cover: hero is taken from the selected source-backed article image.
+// If no licensed/reusable image can be retrieved, render a clearly marked information cover instead.
+function DailyCover({cover,date}){
+ const photos=cover?.pictures||[];
+ const hero=photos[0],side=photos.slice(1,3);
+ const hasImage=!!hero?.asset;
+ return <AbsoluteFill style={{background:'#060b15',fontFamily:font,color:'#f6f7ff',overflow:'hidden'}}>
+  <AbsoluteFill style={{background:'radial-gradient(ellipse at 75% 25%,#14698a65,transparent 45%),linear-gradient(155deg,#081628,#081017 58%,#060b12)'}}/>
+  <div style={{position:'absolute',inset:0,opacity:.34,backgroundImage:'linear-gradient(#5ebfe625 1px, transparent 1px),linear-gradient(90deg,#5ebfe625 1px, transparent 1px)',backgroundSize:'75px 75px'}}/>
+  <div style={{position:'absolute',top:79,left:72,right:72,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+   <div style={{fontSize:37,fontWeight:950,letterSpacing:5}}>AI <span style={{color:'#55ddf8'}}>DAILY</span></div>
+   <div style={{fontSize:30,color:'#b9d8e7',fontWeight:850}}>{cover?.date||date}</div>
+  </div>
+  <div style={{position:'absolute',top:155,left:65,right:65,fontSize:139,fontWeight:1000,letterSpacing:4,transform:'scaleX(.95)',transformOrigin:'left',lineHeight:1.03,textShadow:'7px 8px 0 #06101b,0 0 45px #45bbda77',zIndex:9}}>
+   {cover?.title||'AI日报'}
+  </div>
+  <div style={{position:'absolute',top:300,left:72,right:72,height:1100,overflow:'hidden',borderRadius:24,border:'2px solid #6dd4f848',background:'#0e1a28'}}>
+    {hasImage?<>
+      <Img src={staticFile(hero.asset)} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',filter:'blur(24px) brightness(.52)',transform:'scale(1.18)'}}/>
+      <Img src={staticFile(hero.asset)} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',objectPosition:'center',filter:'contrast(1.08) saturate(1.12)'}}/>
+      {side.length>0&&<div style={{position:'absolute',right:20,top:480,width:300,display:'flex',gap:12,flexDirection:'column'}}>
+       {side.map((img,i)=><div key={i} style={{height:248,background:'#131d30',border:'3px solid #c3eaffbd',borderRadius:16,overflow:'hidden',boxShadow:'0 15px 40px #0009'}}>
+        <Img src={staticFile(img.asset)} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+       </div>)}
+      </div>}
+    </>:<div style={{height:'100%',display:'flex',justifyContent:'center',alignItems:'center',flexDirection:'column',gap:32}}>
+       <div style={{fontSize:250,fontWeight:1000,color:'#42d7ed',textShadow:'0 0 100px #39bedf'}}>AI</div>
+       <div style={{fontSize:40,fontWeight:800,color:'#c8d9f1'}}>当期无可用真实配图</div>
+    </div>}
+    <div style={{position:'absolute',bottom:0,left:0,right:0,height:420,background:'linear-gradient(0deg,#020611 7%,#030812d9 54%,transparent)'}}/>
+  </div>
+  <div style={{position:'absolute',top:1135,left:72,right:72,zIndex:10}}>
+    <div style={{display:'inline-block',fontSize:29,fontWeight:900,background:'#31b8d9',color:'#001c29',padding:'9px 21px',borderRadius:8,marginBottom:18}}>
+      {cover?.category||'每日 AI 资讯'}
+    </div>
+    <div style={{fontSize:67,lineHeight:1.22,fontWeight:1000,color:'#fff',maxWidth:925,textShadow:'0 6px 26px #000'}}>{(cover?.hook||'最新 AI 资讯热点').slice(0,27)}</div>
+  </div>
+  <div style={{position:'absolute',top:1510,left:75,right:75}}>
+    <div style={{fontSize:48,lineHeight:1.4,fontWeight:950,color:'#6be6b6',textShadow:'0 3px 18px #000c'}}>{(cover?.tagline||'产品 · 研究 · 开源 · 应用').slice(0,29)}</div>
+    <div style={{marginTop:35,height:5,width:300,background:'linear-gradient(90deg,#59e2ff,#80f0af)',borderRadius:10}}/>
+    <div style={{marginTop:43,display:'flex',justifyContent:'space-between',fontSize:27,color:'#a9c4d8',fontWeight:800}}>
+      <span>{hasImage?'原始资讯配图 · 来源见清单':'原创图文信息卡'}</span>
+      <span>何夕2077 · 摘要整理</span>
+    </div>
+  </div>
+  <div style={{position:'absolute',left:0,right:0,bottom:0,height:26,background:'linear-gradient(90deg,#29cadf,#60f2b9,#3279e4)'}}/>
+ </AbsoluteFill>
+}
+
+const Root=()=> <><Composition id="AiDaily" component={Daily} width={W} height={H} fps={30} durationInFrames={600} defaultProps={{date:'DEMO',scenes:[],captions:[],totalFrames:600,hasAudio:false}} calculateMetadata={({props})=>({durationInFrames:props.totalFrames||600})}/>;
+<Composition id="DailyCover" component={DailyCover} width={W} height={H} fps={30} durationInFrames={1} defaultProps={{cover:{title:'AI日报',date:'DEMO',pictures:[],hook:'真实日报案例封面',tagline:'原创资讯解读',category:'AI日报'},date:'DEMO'}}/></>;
 registerRoot(Root);
